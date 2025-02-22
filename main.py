@@ -37,9 +37,12 @@ def main():
     # Initialize memory values for testing load/store
     processor.store_word(0, 0x12345678)  # For testing lw
     
-    # Create report generator and run simulation
+    # Run simulation and generate both text and PDF reports
     report_generator = SimulationReportGenerator()
     processor.simulate(program, max_cycles=30, report_generator=report_generator)
+    
+    # Generate PDF report
+    report_generator.generate_pdf('simulation_report.pdf')
 
 if __name__ == "__main__":
     main()

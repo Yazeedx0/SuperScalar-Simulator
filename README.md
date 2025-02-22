@@ -151,6 +151,62 @@ processor.store_word(0, 0x12345678)
 processor.store_word(4, 0x87654321)
 ```
 
+## 📊 Reporting System
+
+The simulator provides comprehensive reporting capabilities through both PDF and text-based formats.
+
+### PDF Reports
+Generated PDF reports include:
+- Professional header with simulation title and timestamp
+- Program information with instruction listing
+- Performance analysis metrics
+- Detailed pipeline stages analysis
+- Hazard detection events
+- Clean, modern design with tables and color-coding
+
+### Text-Based Reports
+Includes detailed information about:
+- Cycle-by-cycle pipeline state
+- Register contents
+- Hazard detection
+- Performance metrics
+
+### Using the Report Generator
+```python
+from mips_pipline.SimulationReportGenerator import SimulationReportGenerator
+
+# Create report generator
+report_gen = SimulationReportGenerator()
+
+# Add program information
+report_gen.add_program_info(program)
+
+# Add cycle data during simulation
+report_gen.add_cycle_data(
+    cycle=current_cycle,
+    stages=pipeline_stages,
+    registers=register_state,
+    hazards=hazard_info
+)
+
+# Generate text report
+text_report = report_gen.generate_report()
+print(text_report)
+
+# Generate PDF report
+report_gen.generate_pdf("simulation_report.pdf")
+```
+
+### Report Metrics
+The reports include crucial performance metrics:
+- Total execution cycles
+- Instructions executed
+- CPI (Cycles Per Instruction)
+- Pipeline efficiency
+- Hazard stall count
+- Actual vs. ideal cycle comparison
+- Instructions Per Cycle (IPC)
+
 ## 📝 Instruction Format Support
 
 ### R-Type Instructions

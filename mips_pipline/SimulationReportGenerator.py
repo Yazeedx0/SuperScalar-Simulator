@@ -2,12 +2,82 @@ import logging
 from typing import Dict, List
 from tabulate import tabulate
 from datetime import datetime
+from fpdf import FPDF
+import os
+
+class PDFReport(FPDF):
+    def __init__(self):
+        super().__init__()
+        # Define colors
+        self.primary_color = (40, 120, 180)
+        self.secondary_color = (70, 130, 180)
+        self.light_gray = (245, 245, 245)
+        self.dark_gray = (80, 80, 80)
+        
+        # Try to use Montserrat if available, otherwise fall back to Arial
+        base_path = os.path.dirname(os.path.dirname(__file__))
+        font_path = f'{base_path}/assets/fonts/Montserrat-Regular.ttf'
+        try:
+            self.add_font('Montserrat', '', font_path, uni=True)
+            self.add_font('Montserrat', 'B', f'{base_path}/assets/fonts/Montserrat-Bold.ttf', uni=True)
+            self.default_font = 'Montserrat'
+        except RuntimeError:
+            self.default_font = 'Arial'
+        
+    def header(self):
+        # Modern header design
+        self.set_fill_color(*self.primary_color)
+        self.rect(0, 0, 210, 35, 'F')
+        
+        # Title
+        self.set_font(self.default_font, 'B', 24)
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 15, 'Risk - V Superscalar Simulation', 0, 1, 'C')
+        
+        # Subtitle
+        self.set_font(self.default_font, '', 12)
+        self.cell(0, 8, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 0, 1, 'C')
+        self.ln(20)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font(self.default_font, '', 8)
+        self.set_text_color(*self.dark_gray)
+        self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+
+    def chapter_title(self, title):
+        self.set_font(self.default_font, 'B', 16)
+        self.set_fill_color(*self.secondary_color)
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 10, title, 0, 1, 'L', True)
+        self.ln(5)
+
+    def create_table(self, headers, data, col_widths=None):
+        self.set_fill_color(*self.light_gray)
+        self.set_text_color(*self.dark_gray)
+        self.set_font(self.default_font, 'B', 10)
+        
+        # Headers
+        for i, header in enumerate(headers):
+            width = col_widths[i] if col_widths else self.get_string_width(header) + 10
+            self.cell(width, 8, header, 1, 0, 'C', True)
+        self.ln()
+        
+        # Data
+        self.set_font(self.default_font, '', 10)
+        for i, row in enumerate(data):
+            self.set_fill_color(245, 245, 245) if i % 2 else self.set_fill_color(255, 255, 255)
+            for j, cell in enumerate(row):
+                width = col_widths[j] if col_widths else self.get_string_width(str(cell)) + 10
+                self.cell(width, 8, str(cell), 1, 0, 'L', True)
+            self.ln()
 
 class SimulationReportGenerator:
     def __init__(self):
         self.program_info = []
         self.cycle_data = []
         self.start_time = datetime.now()
+        self.pdf = PDFReport()
         
     def add_program_info(self, program: List[int]):
         self.program_info = [hex(instr) for instr in program]
@@ -98,4 +168,53 @@ class SimulationReportGenerator:
         report.append(f"Instructions Per Cycle (IPC): {actual_throughput:.2f}")
         
         return "\n".join(report)
+
+    def generate_pdf(self, filename: str):
+        """Generate a beautifully formatted PDF report"""
+        self.pdf.add_page()
+        
+        # Program Information Section
+        self.pdf.chapter_title('1. Program Information')
+        
+        # Instructions table
+        headers = ['Index', 'Instruction']
+        data = [[f"{i:04d}", instr] for i, instr in enumerate(self.program_info[:20])]
+        self.pdf.create_table(headers, data, [30, 160])
+        self.pdf.ln(10)
+
+        # Performance Analysis Section
+        self.pdf.chapter_title('2. Performance Analysis')
+        
+        metrics = [
+            ['Total Cycles', str(len(self.cycle_data))],
+            ['Instructions', str(len(self.program_info))],
+            ['CPI', f"{len(self.cycle_data)/len(self.program_info):.2f}"],
+            ['Efficiency', f"{(len(self.program_info)/(len(self.cycle_data)*2))*100:.1f}%"]
+        ]
+        self.pdf.create_table(['Metric', 'Value'], metrics, [95, 95])
+        self.pdf.ln(10)
+
+        # Pipeline Analysis Section
+        self.pdf.chapter_title('3. Pipeline Stages Analysis')
+        
+        for i, cycle_info in enumerate(self.cycle_data[:15]):
+            # Cycle header with modern styling
+            self.pdf.set_fill_color(200, 220, 240)
+            self.pdf.set_font(self.pdf.default_font, 'B', 12)  # Fixed: using self.pdf.default_font
+            
+            # Stage information in clean table format
+            stage_data = []
+            for stage, instructions in cycle_info['stages'].items():
+                instr_str = ', '.join([str(i) if i else 'NOP' for i in instructions])
+                stage_data.append([stage, instr_str])
+            self.pdf.create_table(['Stage', 'Instructions'], stage_data, [40, 150])
+            
+            # Hazard warning with icon
+            if cycle_info['hazards']['data_hazards']:
+                self.pdf.set_text_color(200, 0, 0)
+                self.pdf.set_font(self.pdf.default_font, 'B', 10)  # Fixed: using self.pdf.default_font
+                self.pdf.cell(0, 6, '⚠ Data Hazard Detected', 0, 1, 'L')
+            self.pdf.ln(2)
+
+        self.pdf.output(filename)
 
