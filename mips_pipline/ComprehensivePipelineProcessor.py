@@ -3,7 +3,6 @@ from typing import List, Dict, Optional
 from mips_pipline.PipelineStage import PipelineStage
 from mips_pipline.InstructionDecoder import InstructionDecoder
 from mips_pipline.enums.ProcessorSignals import Stages, InstructionTypes, RegisterTypes, Instruction
-from mips_pipline.ReportGenerator import ReportGenerator
 
 logging.basicConfig(
     level=logging.INFO,
@@ -299,10 +298,8 @@ class ComprehensivePipelineProcessor:
             'hazards': {'data_hazards': self.detect_data_hazard([d.get(RegisterTypes.decoded_instruction.value) if d else None for d in self.stages[Stages.ID.value].details])}
         }
 
-    def simulate(self, program: List[int], max_cycles: int = 100, report_generator=None):
+    def simulate(self, program: List[int], max_cycles: int = 100):
         self.program = program
-        if report_generator:
-            report_generator.add_program_info(program)
             
         logger.info("\n" + "="*50)
         logger.info("SUPERSCALAR PIPELINE SIMULATION DETAILS")
@@ -331,19 +328,6 @@ class ComprehensivePipelineProcessor:
                 break
                 
             self.run_pipeline_cycle()
-            
-            if report_generator:
-                cycle_info = self.get_cycle_info()
-                hazards_info = self.get_hazards_info()
-                performance_metrics = self.get_performance_metrics()
-                
-                report_generator.add_cycle_data(
-                    self.cycle_count,
-                    cycle_info['stages'],
-                    cycle_info['registers'],
-                    {**cycle_info['hazards'], **hazards_info},
-                    performance_metrics
-                )
         
         # Print final statistics
         logger.info("\n" + "="*50)
