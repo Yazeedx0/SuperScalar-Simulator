@@ -61,11 +61,11 @@ A sophisticated Python-based simulator for a superscalar MIPS processor that imp
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/superscalar-mips-simulator.git
-cd superscalar-mips-simulator
+git clone https://github.com/Yazeedx0/SuperScalar-Simulator
+cd Superscalar simulator
 
 # Install dependencies
-pip install tabulate prettytable
+pip install -r requirements.txt
 ```
 
 ### Running the Simulator
