@@ -16,27 +16,7 @@ def main():
         0x00A62022,  # sub  r4, r5, r6
         0x00E83820,  # add  r7, r7, r8
         0x012A5022,  # sub  r10, r9, r10
-        
-        # Logical operations
-        0x00CB6024,  # and  r12, r6, r11
-        0x01097025,  # or   r14, r8, r9
-        0x00EA7826,  # xor  r15, r7, r10
-        0x00C06827,  # nor  r13, r6, r0
-        
-        # Shift operations
-        0x00084080,  # sll  r8, r8, 2
-        0x000C5182,  # srl  r10, r12, 6
-        0x001F7883,  # sra  r15, r31, 2
-        
-        # Memory operations
-        0x8C0B0000,  # lw   r11, 0(r0)
-        0xAC0C0004,  # sw   r12, 4(r0)
-        
-        # Branch/Jump operations
-        0x10200002,  # beq  r1, r0, 2
-        0x14200002,  # bne  r1, r0, 2
-        0x08000000,  # j    0
-    ]
+]
 
     # Initialize registers with test values
     initial_registers = {

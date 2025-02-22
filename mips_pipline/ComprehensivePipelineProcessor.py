@@ -349,7 +349,7 @@ class ComprehensivePipelineProcessor:
         if report_generator:
             report_generator.add_program_info(program)
             
-        logger.info("====== MIPS Superscalar Pipeline Simulation Started =====")
+        logger.info("====== Risk -V : MIPS Superscalar Pipeline Simulation Started =====")
         while self.pc < len(self.program) or any(any(instr is not None for instr in stage.instructions) for stage in self.stages.values()):
             if self.cycle_count >= max_cycles:
                 logger.warning("Maximum cycle count reached.")

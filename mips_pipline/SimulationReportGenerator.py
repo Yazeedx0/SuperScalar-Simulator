@@ -25,7 +25,7 @@ class SimulationReportGenerator:
         
         # Header
         report.append("=" * 80)
-        report.append("MIPS Superscalar Pipeline Simulation Report")
+        report.append("Risk- V : MIPS Superscalar Pipeline Simulation Report")
         report.append(f"Generated: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         report.append("=" * 80 + "\n")
         
