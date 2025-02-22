@@ -337,15 +337,24 @@ class ComprehensivePipelineProcessor:
         }
 
     def simulate(self, program: List[int], max_cycles: int = 100, report_generator=None):
+        """
+        Run the pipeline simulation with the given program.
+        
+        Args:
+            program: List of instructions encoded as integers
+            max_cycles: Maximum number of cycles to simulate
+            report_generator: Optional SimulationReportGenerator instance
+        """
         self.program = program
         if report_generator:
             report_generator.add_program_info(program)
             
-        logger.info("====== Risk-V === Superscalar Pipeline Simulation Started =====")
+        logger.info("====== MIPS Superscalar Pipeline Simulation Started =====")
         while self.pc < len(self.program) or any(any(instr is not None for instr in stage.instructions) for stage in self.stages.values()):
             if self.cycle_count >= max_cycles:
                 logger.warning("Maximum cycle count reached.")
                 break
+                
             self.run_pipeline_cycle()
             
             if report_generator:
@@ -356,10 +365,13 @@ class ComprehensivePipelineProcessor:
                     cycle_info['registers'],
                     cycle_info['hazards']
                 )
-                
-        logger.info("=== Superscalar Pipeline Simulation Ended ===")
-        self.print_registers()
-        logger.info(f"Total Cycles: {self.cycle_count}")
+        
+        if report_generator:
+            logger.info("\n" + report_generator.generate_report())
+        else:
+            logger.info("=== Superscalar Pipeline Simulation Ended ===")
+            self.print_registers()
+            logger.info(f"Total Cycles: {self.cycle_count}")
 
     def print_registers(self):
         logger.info("\nFinal Register States:")
