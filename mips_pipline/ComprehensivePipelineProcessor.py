@@ -377,3 +377,14 @@ class ComprehensivePipelineProcessor:
         logger.info("\nFinal Register States:")
         for i in range(len(self.registers)):
             logger.info(f"${i}: {self.registers[i]}")
+
+    def store_word(self, address, value):
+        """Store a word in memory"""
+        if 0 <= address < len(self.memory):
+            self.memory[address] = value
+    
+    def load_word(self, address):
+        """Load a word from memory"""
+        if 0 <= address < len(self.memory):
+            return self.memory[address]
+        return 0
