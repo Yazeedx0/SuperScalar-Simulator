@@ -4,6 +4,7 @@ from mips_pipline.PipelineStage import PipelineStage
 from mips_pipline.InstructionDecoder import InstructionDecoder
 from mips_pipline.enums.ProcessorSignals import Stages, InstructionTypes, RegisterTypes, Instruction
 
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(message)s',
@@ -12,11 +13,27 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class ComprehensivePipelineProcessor:
+    """
+    A superscalar MIPS pipeline processor implementation supporting multiple instruction issue.
+    Handles instruction fetch, decode, execute, memory access, and write back stages with
+    data hazard detection and forwarding.
+    """
+
     def __init__(self, memory_size: int = 4096, register_count: int = 32, issue_width: int = 2):
+        """
+        Initialize the processor with configurable memory, registers, and issue width.
+        
+        Args:
+            memory_size: Size of main memory in words
+            register_count: Number of general-purpose registers
+            issue_width: Number of instructions that can be issued per cycle
+        """
+        # Initialize processor components
         self.memory = [0] * memory_size
         self.registers = [0] * register_count
         self.issue_width = issue_width
 
+        # Initialize pipeline stages
         self.stages = {
             Stages.IF.value: PipelineStage('Instruction Fetch', self.issue_width),
             Stages.ID.value: PipelineStage('Instruction Decode', self.issue_width),
@@ -25,17 +42,18 @@ class ComprehensivePipelineProcessor:
             Stages.WB.value: PipelineStage('Write Back', self.issue_width)
         }
 
+        # Processor state
         self.pc = 0
         self.cycle_count = 0
         self.instruction_count = 0
         self.program: List[int] = []
 
+        # Hazard handling
         self.forwarding = {
             Stages.EX_MEM.value: [None] * self.issue_width,
             Stages.MEM_WB.value: [None] * self.issue_width
         }
         self.stall = False
-        
 
     def set_registers(self, initial_values: Dict[int, int]):
         for reg, value in initial_values.items():
@@ -43,19 +61,29 @@ class ComprehensivePipelineProcessor:
                 self.registers[reg] = value
 
     def fetch_stage(self) -> List[Optional[int]]:
+        """
+        Fetch stage: Retrieves instructions from program memory based on PC.
+        Returns a list of fetched instructions (or None for empty slots).
+        """
         stage = self.stages[Stages.IF.value]
         instructions = []
+        
+        # Fetch multiple instructions based on issue width
         for _ in range(self.issue_width):
             if self.pc < len(self.program):
                 instructions.append(self.program[self.pc])
                 self.pc += 1
             else:
                 instructions.append(None)
+                
+        # Update stage information
         stage.instructions = instructions
         stage.details = [
-            {RegisterTypes.program_counter.value: self.pc - len(instructions) + i, RegisterTypes.raw_instruction.value: hex(instr)}
+            {RegisterTypes.program_counter.value: self.pc - len(instructions) + i,
+             RegisterTypes.raw_instruction.value: hex(instr)}
             if instr is not None else {} for i, instr in enumerate(instructions)
         ]
+        
         logger.info(f"Fetch Stage - Instructions: {[hex(instr) if instr is not None else 'None' for instr in instructions]}")
         return instructions
 
@@ -72,16 +100,22 @@ class ComprehensivePipelineProcessor:
         return decoded_instructions
 
     def execute_stage(self, decoded_instructions: List[Optional[Dict]]) -> List[Optional[Dict]]:
+        """
+        Execute stage: Performs arithmetic, logical, and control operations.
+        Handles R-type, I-type, and J-type instructions with appropriate ALU operations.
+        """
         stage = self.stages[Stages.EX.value]
         results = []
         branch_taken = False
         jump_address = None
 
+        # Process each instruction in parallel
         for decoded in decoded_instructions:
             if decoded is None:
                 results.append(None)
                 continue
 
+            # Extract instruction components
             instr_type = decoded[RegisterTypes.type.value]
             mnemonic = decoded[RegisterTypes.mnemonic.value]
             rs_val = self.get_register_value(decoded[RegisterTypes.rs.value])
@@ -93,6 +127,7 @@ class ComprehensivePipelineProcessor:
 
             result = None
 
+            # Execute based on instruction type
             if instr_type == InstructionTypes.R.value:
                 if mnemonic == Instruction.ADD.value: result = rs_val + rt_val
                 elif mnemonic == Instruction.SUB.value: result = rs_val - rt_val
@@ -130,6 +165,7 @@ class ComprehensivePipelineProcessor:
                     jump_address = address
                     branch_taken = True
 
+            # Handle branch/jump outcomes
             if branch_taken and jump_address is not None:
                 self.pc = jump_address
                 self.flush_pipeline()
@@ -141,7 +177,9 @@ class ComprehensivePipelineProcessor:
                 RegisterTypes.jump_address.value: jump_address
             })
 
-        stage.instructions = [decoded[RegisterTypes.mnemonic.value] if decoded else None for decoded in decoded_instructions]
+        # Update stage information
+        stage.instructions = [decoded[RegisterTypes.mnemonic.value] if decoded else None 
+                            for decoded in decoded_instructions]
         stage.details = results
         return results
 
@@ -298,108 +336,30 @@ class ComprehensivePipelineProcessor:
             'hazards': {'data_hazards': self.detect_data_hazard([d.get(RegisterTypes.decoded_instruction.value) if d else None for d in self.stages[Stages.ID.value].details])}
         }
 
-    def simulate(self, program: List[int], max_cycles: int = 100):
+    def simulate(self, program: List[int], max_cycles: int = 100, report_generator=None):
         self.program = program
+        if report_generator:
+            report_generator.add_program_info(program)
             
-        logger.info("\n" + "="*50)
-        logger.info("SUPERSCALAR PIPELINE SIMULATION DETAILS")
-        logger.info("="*50)
-        
-        # Print initial setup
-        logger.info("\nProgram Instructions:")
-        for i, instr in enumerate(program):
-            decoded = InstructionDecoder.decode(instr)
-            logger.info(f"[0x{i*4:04x}] 0x{instr:08x} - {decoded.get('mnemonic', 'UNKNOWN')}")
-        
-        logger.info("\nInitial Register Values:")
-        for i, val in enumerate(self.registers):
-            if val != 0:
-                logger.info(f"${i}: 0x{val:08x} ({val})")
-        
-        logger.info("\nInitial Memory Values:")
-        for i, val in enumerate(self.memory):
-            if val != 0:
-                logger.info(f"[0x{i*4:04x}] = 0x{val:08x} ({val})")
-        
-        logger.info("\nSimulation Progress:")
+        logger.info("====== Risk-V === Superscalar Pipeline Simulation Started =====")
         while self.pc < len(self.program) or any(any(instr is not None for instr in stage.instructions) for stage in self.stages.values()):
             if self.cycle_count >= max_cycles:
-                logger.warning("\nMaximum cycle count reached!")
+                logger.warning("Maximum cycle count reached.")
                 break
-                
             self.run_pipeline_cycle()
-        
-        # Print final statistics
-        logger.info("\n" + "="*50)
-        logger.info("SIMULATION SUMMARY")
-        logger.info("="*50)
-        
-        metrics = self.get_performance_metrics()
-        logger.info(f"\nTotal Cycles: {self.cycle_count}")
-        logger.info(f"Instructions Executed: {metrics['instructions_executed']}")
-        logger.info(f"IPC (Instructions Per Cycle): {metrics['ipc']:.2f}")
-        logger.info(f"Pipeline Utilization: {metrics['utilization']:.1f}%")
-        logger.info(f"Total Stalls: {metrics['total_stalls']}")
-        
-        logger.info("\nHazard Statistics:")
-        hazards = self.get_hazards_info()
-        for hazard_type, count in hazards.items():
-            logger.info(f"{hazard_type}: {count}")
-        
+            
+            if report_generator:
+                cycle_info = self.get_cycle_info()
+                report_generator.add_cycle_data(
+                    self.cycle_count,
+                    cycle_info['stages'],
+                    cycle_info['registers'],
+                    cycle_info['hazards']
+                )
+                
+        logger.info("=== Superscalar Pipeline Simulation Ended ===")
         self.print_registers()
-        logger.info("\nSimulation completed successfully!")
-
-    def get_performance_metrics(self) -> Dict:
-        # Count successfully completed instructions in WB stage
-        instructions_executed = 0
-        for stage_details in self.stages[Stages.WB.value].details:
-            if stage_details and RegisterTypes.decoded.value in stage_details:
-                instructions_executed += 1
-        
-        # Calculate performance metrics
-        metrics = {
-            'instructions_executed': instructions_executed,
-            'ipc': instructions_executed / max(1, self.cycle_count),  # Avoid division by zero
-            'utilization': (instructions_executed / (max(1, self.cycle_count) * self.issue_width)) * 100,
-            'total_stalls': self.count_stalls(),
-            'cycle_count': self.cycle_count
-        }
-        return metrics
-
-    def get_hazards_info(self) -> Dict:
-        # Track actual hazard occurrences
-        data_hazards = 0
-        control_hazards = 0
-        structural_hazards = 0
-
-        # Count data hazards from ID stage stalls
-        for cycle_details in self.stages[Stages.ID.value].details:
-            if cycle_details and cycle_details.get('stall_reason') == 'data_hazard':
-                data_hazards += 1
-
-        # Count control hazards from branch/jump instructions
-        for details in self.stages[Stages.EX.value].details:
-            if details and details.get(RegisterTypes.branch_taken.value):
-                control_hazards += 1
-
-        # Count structural hazards when resource conflicts occur
-        for stage in self.stages.values():
-            active_instructions = len([instr for instr in stage.instructions if instr is not None])
-            if active_instructions > self.issue_width:
-                structural_hazards += 1
-
-        return {
-            'Data Hazards': data_hazards,
-            'Control Hazards': control_hazards,
-            'Structural Hazards': structural_hazards
-        }
-
-    def count_stalls(self) -> int:
-        # Count cycles where any pipeline stage contains bubbles (NOPs)
-        stall_count = 0
-        for stage in self.stages.values():
-            stall_count += sum(1 for instr in stage.instructions if instr is None)
-        return stall_count
+        logger.info(f"Total Cycles: {self.cycle_count}")
 
     def print_registers(self):
         logger.info("\nFinal Register States:")
