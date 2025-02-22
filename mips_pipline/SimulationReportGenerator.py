@@ -52,7 +52,10 @@ class PDFReport(FPDF):
         self.cell(0, 10, title, 0, 1, 'L', True)
         self.ln(5)
 
-    def create_table(self, headers, data, col_widths=None):
+    def create_table(self, headers, data, col_widths=None, data_font=None):
+        if data_font is None:
+            data_font = self.default_font
+        
         self.set_fill_color(*self.light_gray)
         self.set_text_color(*self.dark_gray)
         self.set_font(self.default_font, 'B', 10)
@@ -63,10 +66,10 @@ class PDFReport(FPDF):
             self.cell(width, 8, header, 1, 0, 'C', True)
         self.ln()
         
-        # Data
-        self.set_font(self.default_font, '', 10)
+        # Data with subtle tint for alternate rows
+        self.set_font(data_font, '', 10)
         for i, row in enumerate(data):
-            self.set_fill_color(245, 245, 245) if i % 2 else self.set_fill_color(255, 255, 255)
+            self.set_fill_color(240, 248, 255) if i % 2 else self.set_fill_color(255, 255, 255)  # Alice Blue for alternate rows
             for j, cell in enumerate(row):
                 width = col_widths[j] if col_widths else self.get_string_width(str(cell)) + 10
                 self.cell(width, 8, str(cell), 1, 0, 'L', True)
@@ -142,12 +145,10 @@ class SimulationReportGenerator:
         # Performance Metrics
         report.append("\n5. Performance Metrics")
         report.append("-" * 20)
-        # Count actual hazard stalls by looking at consecutive cycles
+        # Count actual hazard stalls
         hazard_cycles = 0
         for i in range(len(self.cycle_data)):
             if self.cycle_data[i]['hazards']['data_hazards']:
-                # Check if this hazard actually caused a stall
-                # by looking at the pipeline stages
                 stages = self.cycle_data[i]['stages']
                 if any('NOP' in str(instr) for stage, instrs in stages.items() for instr in instrs):
                     hazard_cycles += 1
@@ -156,7 +157,6 @@ class SimulationReportGenerator:
         ideal_cycles = total_instructions / 2  # Due to 2-way superscalar
         actual_cycles = len(self.cycle_data)
         
-        # Calculate efficiency considering superscalar capability
         theoretical_max_throughput = total_instructions
         actual_throughput = total_instructions / actual_cycles
         pipeline_efficiency = (actual_throughput / 2) * 100  # Divide by 2 for 2-way superscalar
@@ -175,16 +175,13 @@ class SimulationReportGenerator:
         
         # Program Information Section
         self.pdf.chapter_title('1. Program Information')
-        
-        # Instructions table
         headers = ['Index', 'Instruction']
         data = [[f"{i:04d}", instr] for i, instr in enumerate(self.program_info[:20])]
-        self.pdf.create_table(headers, data, [30, 160])
+        self.pdf.create_table(headers, data, [30, 160], data_font='Courier')  # Use Courier for instructions
         self.pdf.ln(10)
 
         # Performance Analysis Section
         self.pdf.chapter_title('2. Performance Analysis')
-        
         metrics = [
             ['Total Cycles', str(len(self.cycle_data))],
             ['Instructions', str(len(self.program_info))],
@@ -196,13 +193,14 @@ class SimulationReportGenerator:
 
         # Pipeline Analysis Section
         self.pdf.chapter_title('3. Pipeline Stages Analysis')
-        
         for i, cycle_info in enumerate(self.cycle_data[:15]):
             # Cycle header with modern styling
-            self.pdf.set_fill_color(200, 220, 240)
-            self.pdf.set_font(self.pdf.default_font, 'B', 12)  # Fixed: using self.pdf.default_font
+            self.pdf.set_fill_color(200, 220, 240)  # Light blue for cycle header
+            self.pdf.set_font(self.pdf.default_font, 'B', 12)
+            self.pdf.cell(0, 8, f"Cycle {cycle_info['cycle']}", 0, 1, 'L', True)
+            self.pdf.ln(2)
             
-            # Stage information in clean table format
+            # Stage information
             stage_data = []
             for stage, instructions in cycle_info['stages'].items():
                 instr_str = ', '.join([str(i) if i else 'NOP' for i in instructions])
@@ -212,9 +210,35 @@ class SimulationReportGenerator:
             # Hazard warning with icon
             if cycle_info['hazards']['data_hazards']:
                 self.pdf.set_text_color(200, 0, 0)
-                self.pdf.set_font(self.pdf.default_font, 'B', 10)  # Fixed: using self.pdf.default_font
+                self.pdf.set_font(self.pdf.default_font, 'B', 10)
                 self.pdf.cell(0, 6, '⚠ Data Hazard Detected', 0, 1, 'L')
-            self.pdf.ln(2)
+            self.pdf.ln(5)  # Increased spacing after each cycle
 
+        # Final Register State Section
+        self.pdf.chapter_title('4. Final Register State')
+        final_registers = self.cycle_data[-1]['registers']
+        reg_data = [[f"R{i}", hex(val)] for i, val in final_registers.items()]
+        self.pdf.create_table(['Register', 'Value'], reg_data, [95, 95], data_font='Courier')  # Use Courier for values
+        self.pdf.ln(10)
+
+        # Detailed Performance Metrics Section
+        self.pdf.chapter_title('5. Detailed Performance Metrics')
+        total_cycles = len(self.cycle_data)
+        total_instructions = len(self.program_info)
+        cpi = total_cycles / total_instructions
+        ipc = total_instructions / total_cycles
+        hazard_stalls = sum(1 for cycle in self.cycle_data if cycle['hazards']['data_hazards'] and any('NOP' in str(instr) for stage in cycle['stages'].values() for instr in stage))
+        ideal_cycles = total_instructions / 2  # 2-way superscalar
+        pipeline_efficiency = (ipc / 2) * 100  # Theoretical max IPC is 2
+        metrics = [
+            ['Total Cycles', str(total_cycles)],
+            ['Total Instructions', str(total_instructions)],
+            ['Cycles Per Instruction (CPI)', f"{cpi:.2f}"],
+            ['Instructions Per Cycle (IPC)', f"{ipc:.2f}"],
+            ['Hazard Stalls', str(hazard_stalls)],
+            ['Ideal Cycles (no hazards)', f"{ideal_cycles:.1f}"],
+            ['Pipeline Efficiency', f"{pipeline_efficiency:.1f}%"]
+        ]
+        self.pdf.create_table(['Metric', 'Value'], metrics, [120, 70])
+        
         self.pdf.output(filename)
-
